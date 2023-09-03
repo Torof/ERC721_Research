@@ -66,7 +66,7 @@ contract Staking is IERC721Receiver, IERC165 {
     /// @param Documents a parameter just like in doxygen (must be followed by parameter name)
     /// @return Documents the return variables of a contract’s function state variable
     /// @inheritdoc	Copies all missing tags from the base function (must be followed by the contract name)
-    function nftContractAddress() public view returns(address contractAddress){
+    function nft() public view returns(address contractAddress){
         contractAddress = _nftContractAddress;
     }
 

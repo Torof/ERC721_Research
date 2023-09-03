@@ -15,9 +15,18 @@ contract StakingTest is Test {
 
     address public contractsOwner = vm.addr(10);
 
-    function setup() public {
+    function setUp() public {
         nft = new NFT("StakeMe", "STKMI");
-        staking = nft.staking();
-        token = staking.token();
+        staking = Staking(nft.staking());
+        token = RewardToken(staking.token());
     }
+
+    function testBase() public {
+        assertEq(nft.name(), "StakeMe", "should return StakeMe");
+        assertEq(nft.symbol(), "STKMI", "should return STKMI");
+        assertEq(address(staking), nft.staking(), "staking contract should have address returned by NFT contract");
+        assertEq(address(token), staking.token(), "ERC20 token contract should have address returned by STAKING contract");
+    }
+
+    
 }

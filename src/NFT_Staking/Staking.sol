@@ -8,7 +8,7 @@ pragma solidity 0.8.21;
 /// @dev Explain to a developer any extra details
 
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
-import {IERC165} from "@openzepplin/contracts/utils/introspection/IERC165.sol";
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {RewardToken} from "./RewardToken.sol";
 
 contract Staking is IERC721Receiver, IERC165 {
@@ -17,7 +17,7 @@ contract Staking is IERC721Receiver, IERC165 {
     address private immutable _nftContractAddress;
 
     /// @notice Explain to an end user what this does
-    address private immutable _rewardTokenAddress;
+    RewardToken private immutable _rewardToken;
 
     /// @notice Explain to an end user what this does
     mapping(uint256 => address) _ownerOf;
@@ -36,81 +36,56 @@ contract Staking is IERC721Receiver, IERC165 {
         mapping(uint8 => uint256) tokenIds;
     }
 
+    event ReceivedandStaked(address operator,address indexed from,uint indexed tokenId,bytes data);
+    event UnstakedAndSent();
+    event Claimed();
+
     constructor() {
         _nftContractAddress = msg.sender;
-        _rewardTokenAddress = new RewardToken();
+        _rewardToken = new RewardToken();
     }
 
-    /// @notice Explain to an end user what this does
-    /// @dev Explain to a developer any extra details
-    /// @param Documents a parameter just like in doxygen (must be followed by parameter name)
-    /// @return Documents the return variables of a contract’s function state variable
-    /// @inheritdoc	Copies all missing tags from the base function (must be followed by the contract name)
+    /// @notice verifies if an interface is supported. see {IERC165}
+    /// @param interfaceId the bytes4 selector of an interfaceId
+    /// @return bool true if the interface is supported
     function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
-        interfaceId == type(IERC721Receiver).interfaceId ||
-        type(IER165).interfaceId;
+        return interfaceId == type(IERC721Receiver).interfaceId ||
+        interfaceId == type(IERC165).interfaceId;
     }
 
-    /// @notice Explain to an end user what this does
-    /// @dev Explain to a developer any extra details
-    /// @param Documents a parameter just like in doxygen (must be followed by parameter name)
-    /// @return Documents the return variables of a contract’s function state variable
-    /// @inheritdoc	Copies all missing tags from the base function (must be followed by the contract name)
+    /// @notice allows to handle reception of ERC721 tokens
+    /// @dev MUST only accept registered collection through safeTranferFrom
+    /// @param operator bla
+    /// @param from bla
+    /// @param tokenId bla
+    /// @param data bla
+    /// @return bytes4 returns the IERC721.onERC721Received selector
     function onERC721Received(address operator,address from,uint tokenId,bytes memory data) external returns(bytes4){
+        require(operator == nft(), "Only registered address");
         _stake(tokenId, from);
+        emit ReceivedandStaked(operator, from, tokenId, data);
         return IERC721Receiver.onERC721Received.selector;
     }
 
-    /// @notice Explain to an end user what this does
-    /// @dev Explain to a developer any extra details
-    /// @param Documents a parameter just like in doxygen (must be followed by parameter name)
-    /// @return Documents the return variables of a contract’s function state variable
-    /// @inheritdoc	Copies all missing tags from the base function (must be followed by the contract name)
+    /// @notice gives the address of the NFT contract tied to this staking protocol
+    /// @return contractAddress of NFT contract
     function nft() public view returns(address contractAddress){
         contractAddress = _nftContractAddress;
     }
 
-    /// @notice Explain to an end user what this does
-    /// @dev Explain to a developer any extra details
-    /// @param Documents a parameter just like in doxygen (must be followed by parameter name)
-    /// @return Documents the return variables of a contract’s function state variable
-    /// @inheritdoc	Copies all missing tags from the base function (must be followed by the contract name)
     function _calculateReward() internal returns(uint256 reward){}
 
-    /// @notice Explain to an end user what this does
-    /// @dev Explain to a developer any extra details
-    /// @param Documents a parameter just like in doxygen (must be followed by parameter name)
-    /// @return Documents the return variables of a contract’s function state variable
-    /// @inheritdoc	Copies all missing tags from the base function (must be followed by the contract name)
     function _stake(uint256 tokenId, address from) private {}
 
-    /// @notice Explain to an end user what this does
-    /// @dev Explain to a developer any extra details
-    /// @param Documents a parameter just like in doxygen (must be followed by parameter name)
-    /// @return Documents the return variables of a contract’s function state variable
-    /// @inheritdoc	Copies all missing tags from the base function (must be followed by the contract name)
     function claim() public {}
 
-    /// @notice Explain to an end user what this does
-    /// @dev Explain to a developer any extra details
-    /// @param Documents a parameter just like in doxygen (must be followed by parameter name)
-    /// @return Documents the return variables of a contract’s function state variable
-    /// @inheritdoc	Copies all missing tags from the base function (must be followed by the contract name)
     function unStake(uint8 index) external {}
 
     /// @notice Explain to an end user what this does
-    /// @dev Explain to a developer any extra details
-    /// @param Documents a parameter just like in doxygen (must be followed by parameter name)
-    /// @return Documents the return variables of a contract’s function state variable
-    /// @inheritdoc	Copies all missing tags from the base function (must be followed by the contract name)
+    /// @return rewardToken address of the ERC20 token reward
     function token() public view returns (address rewardToken) {
-        rewardToken = _rewardTokenAddress;
+        rewardToken = address(_rewardToken);
     }
 
-    /// @notice Explain to an end user what this does
-    /// @dev Explain to a developer any extra details
-    /// @param Documents a parameter just like in doxygen (must be followed by parameter name)
-    /// @return Documents the return variables of a contract’s function state variable
-    /// @inheritdoc	Copies all missing tags from the base function (must be followed by the contract name)
     function claimable() public view returns (uint256 rewards){}
 }

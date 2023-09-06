@@ -110,7 +110,8 @@ contract Staking is IERC721Receiver, IERC165 {
     function _claim(address user) internal {
         require(_userStake[user].stakedNum > 0, "No NFT staked");
         uint256 reward = _calculateReward(user);
-        _rewardToken.mint(user, reward);
+        bool success = _rewardToken.mint(user, reward);
+        require(success, "mint failure");
         _userStake[user].lastClaim = uint64(block.timestamp);
         emit Claimed();
     }
@@ -125,7 +126,6 @@ contract Staking is IERC721Receiver, IERC165 {
         _userStake[msg.sender].stakedNum--;
         _userStake[msg.sender].tokenIds[index] = _userStake[msg.sender].tokenIds[_userStake[msg.sender].stakedNum];
         _userStake[msg.sender].tokenIds[_userStake[msg.sender].stakedNum] = 0;
-        _claim(msg.sender);
         emit UnstakedAndSent();
     }
 

@@ -9,6 +9,12 @@ import "../src/NFT_Staking/Staking.sol";
 import "../src/NFT_Staking/RewardToken.sol";
 
 contract StakingTest is Test {
+    bytes4 public IERC1155_i = 0x9c7d30a0;
+    bytes4 public IERC721_i = 0x80ac58cd;
+    bytes4 public IERC721Receiver_i = 0x73b5f132;
+    bytes4 public IERC1155Receiver_i = 0xf23a6e61;
+    bytes4 public IERC165_i = 0x01ffc9a7;
+
     bytes public emptyHelper;
     NFT public nft;
     Staking public staking;
@@ -36,6 +42,23 @@ contract StakingTest is Test {
         assertEq(nft.symbol(), "STKMI", "should return STKMI");
         assertEq(address(staking), nft.stakingContract(), "staking contract should have address returned by NFT contract");
         assertEq(address(token), staking.tokenContract(), "ERC20 token contract should have address returned by STAKING contract");
+    }
+    
+    //SUCCESS supports interface 
+    function testSupportsInterface(bytes4 wrongByte4) public {
+        assertTrue(nft.supportsInterface(IERC721_i));
+        assertTrue(nft.supportsInterface(IERC165_i));
+        assertFalse(nft.supportsInterface(wrongByte4));
+
+        // assertTrue(staking.supportsInterface(IERC721Receiver_i));
+        assertTrue(staking.supportsInterface(IERC165_i));
+        assertFalse(staking.supportsInterface(wrongByte4));
+    }
+
+
+    function testRevertMintERC20NotStakingContract() public {
+        vm.expectRevert(abi.encodePacked("only staking contract can mint"));
+        token.mint(wh_addr_1, 10 * 10 ** 18);
     }
 
     //SUCCESS whitelistmint
@@ -81,7 +104,7 @@ contract StakingTest is Test {
         nft.whitelistMint{value: 0.5 ether}();
     }
 
-    //SUCCESS mint
+    //SUCCESS mint NFT
     function testMint() public {
         vm.prank(wh_addr_1);
         nft.whitelistMint{value: 0.5 ether}();
@@ -273,18 +296,19 @@ contract StakingTest is Test {
         nft.mint{value: 1 ether}();
 
         //stake
-        vm.prank(n_wh_addr_1);
+        vm.startPrank(n_wh_addr_1);
         nft.safeTransferFrom(n_wh_addr_1, address(staking), 1);
 
         (uint8 stakedNum, ) = staking.userStake(n_wh_addr_1);
         assertEq(stakedNum, 1, "stakedNum should be 1");
         assertEq(staking.ownerOf(1), n_wh_addr_1, "owner of 1 should be n_wh_addr_1");
+        
         //unstake
-        vm.prank(n_wh_addr_1);
         staking.unStake(1);
         (stakedNum, ) = staking.userStake(n_wh_addr_1);
         assertEq(stakedNum, 0, "stakedNum should be 0");
-        assertEq(staking.tokenIdByIndex(1, n_wh_addr_1), 0, "tokenId should be 0");
+        vm.expectRevert(abi.encodePacked("Index out of bounds"));
+        staking.tokenIdByIndex(1, n_wh_addr_1);
     }
 
 }

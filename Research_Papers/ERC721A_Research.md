@@ -1,4 +1,6 @@
-# How does ERC721A save gas?
+# What is ERC721A
+
+## How does ERC721A save gas?
 
 ERC721A saves gas in three ways:
 

@@ -5,8 +5,8 @@
 ERC721A saves gas in three ways:
 
 1. **Batch minting:** ERC721A allows for batch minting of multiple NFTs in a single transaction. This can save a significant amount of gas, as each individual mint operation incurs a gas cost.
-2. **Efficient storage:** ERC721A uses more efficient storage for token metadata. This reduces the amount of gas needed to read and write metadata, which can be a significant cost for operations such as transferring or listing NFTs.
-3. **Reduced ownership updates:** ERC721A only updates the owner of an NFT once per batch mint operation. This can save gas, as each individual ownership update incurs a gas cost.
+2. **Efficient storage:** ERC721A uses more efficient storage for token metadata when compared to ***ERC721 Enumerable***. This reduces the amount of gas needed to read and write metadata, which can be a significant cost for operations such as transferring or listing NFTs.
+3. **Reduced ownership updates:** ERC721A only updates the owner of an NFT once per batch mint operation, and the balance of NFTs an address owns. This can save gas, as each individual ownership update incurs a gas cost.
 
 # Where does ERC721A add cost?
 

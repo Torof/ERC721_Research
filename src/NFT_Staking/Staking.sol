@@ -9,17 +9,18 @@ pragma solidity 0.8.21;
 
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {RewardToken} from "./RewardToken.sol";
 
-contract Staking is IERC721Receiver, IERC165 {
+contract Staking is IERC721Receiver, IERC165, ReentrancyGuard {
 
-    /// @notice Explain to an end user what this does
+    /// @notice address of the NFT contract linked to this staking protocol
     address private immutable _nftContractAddress;
 
-    /// @notice Explain to an end user what this does
+    /// @notice address of the ERC20 token reward linked to this staking protocol
     RewardToken private immutable _rewardToken;
 
-    /// @notice Explain to an end user what this does
+    /// @notice stores the owner of a token of tokenId of the registered NFT contract
     mapping(uint256 => address) _ownerOf;
 
     /// @notice Staking information of a user
@@ -60,10 +61,10 @@ contract Staking is IERC721Receiver, IERC165 {
 
     /// @notice allows to handle reception of ERC721 tokens
     /// @dev MUST only accept registered collection through safeTranferFrom
-    /// @param operator bla
-    /// @param from bla
-    /// @param tokenId bla
-    /// @param data bla
+    /// @param operator EOAs or contracts that are approved to make the transfer
+    /// @param from the address of the user staking the NFT
+    /// @param tokenId the tokenId to stake
+    /// @param data additional data with no specified format
     /// @return bytes4 returns the IERC721.onERC721Received selector
     /// emits a {ReceivedandStaked} event when an NFT is staked
     function onERC721Received(address operator,address from,uint tokenId,bytes memory data) external returns(bytes4){
@@ -85,6 +86,7 @@ contract Staking is IERC721Receiver, IERC165 {
     function _calculateReward(address user) internal view returns(uint256 reward){
         uint256 generationPerSecond = uint256(10**18 * 10) / uint256(86400);
         uint256 timePassed = block.timestamp - _userStake[user].lastClaim;
+        //each NFT staked generates 10 tokens per day
         reward = _userStake[user].stakedNum * generationPerSecond * timePassed;
     }
 
@@ -93,39 +95,64 @@ contract Staking is IERC721Receiver, IERC165 {
     *@param tokenId the tokenId to stake
     *@param from the address of the user staking the NFT
     */
-    function _stake(uint256 tokenId, address from) private {
-        _ownerOf[tokenId] = from;
+    function _stake(uint256 tokenId, address from) private nonReentrant() {
+        _ownerOf[tokenId] = from; //register owner of tokenId for custody by the contract
         StakingMetrics storage metrics = _userStake[from];
+        //make sure the user has claimed their reward before staking
+        if(metrics.stakedNum != 0) _claim(from);
+        metrics.tokenIds[metrics.stakedNum] = tokenId; //starts at 0
         metrics.stakedNum++;
-        //WARNING metrics.tokenIds[0] is empty
-        metrics.tokenIds[metrics.stakedNum] = tokenId;
         metrics.lastClaim = uint64(block.timestamp);
     }
 
+    /**
+    *@notice used to claim the reward for a user at any given time without unstaking
+    */
     function claim() public {
+        require(_userStake[msg.sender].stakedNum > 0, "No NFT staked");
         _claim(msg.sender);
     }
 
-
+    /**
+    *@dev the resetting of lastClaim is done in each use case separately
+    *@notice used to claim the reward for a user at any given time without unstaking
+    *@param user the user to claim the reward for
+    */
     function _claim(address user) internal {
-        require(_userStake[user].stakedNum > 0, "No NFT staked");
         uint256 reward = _calculateReward(user);
-        bool success = _rewardToken.mint(user, reward);
-        require(success, "mint failure");
-        _userStake[user].lastClaim = uint64(block.timestamp);
+        _rewardToken.mint(user, reward);
         emit Claimed();
     }
 
-
-    function unStake(uint8 index) external {
-        require(index > 0 && index <= _userStake[msg.sender].stakedNum, "Index out of bounds");
-        require(_userStake[msg.sender].stakedNum > 0, "No NFT staked");
+    /**
+    *@dev last claim time MUST be modified after the claim
+    *@notice used to unstake an NFT
+    *@param index the index at which the tokenId is stored
+    */
+    function unStake(uint8 index) external nonReentrant() {
         uint256 tokenId = _userStake[msg.sender].tokenIds[index];
-        require(_ownerOf[tokenId] == msg.sender, "Not owner");
+        uint8 stakedNftNum = _userStake[msg.sender].stakedNum;
+
+        //only check needed
+        require(index < stakedNftNum, "Index out of bounds");
+
+        //revoke custody of the NFT by the contract
         _ownerOf[tokenId] = address(0);
+
+        //swap the tokenId to unstake with the last tokenId in the list
+        _userStake[msg.sender].tokenIds[index] = _userStake[msg.sender].tokenIds[stakedNftNum];
+        _userStake[msg.sender].tokenIds[stakedNftNum] = 0;
+
+        //update stakedNum
         _userStake[msg.sender].stakedNum--;
-        _userStake[msg.sender].tokenIds[index] = _userStake[msg.sender].tokenIds[_userStake[msg.sender].stakedNum];
-        _userStake[msg.sender].tokenIds[_userStake[msg.sender].stakedNum] = 0;
+
+        //transfer the NFT back to the user
+        (bool success,) = _nftContractAddress.call(abi.encodeWithSignature("safeTransferFrom(address,address,uint256)", address(this), msg.sender, tokenId));
+        require(success, "Transfer failed");
+        
+        _claim(msg.sender);
+        if(_userStake[msg.sender].stakedNum == 0)_userStake[msg.sender].lastClaim = 0;
+        else _userStake[msg.sender].lastClaim = uint64(block.timestamp);
         emit UnstakedAndSent();
     }
 
@@ -164,7 +191,7 @@ contract Staking is IERC721Receiver, IERC165 {
     *@return tokenId the tokenId at the index
      */
     function tokenIdByIndex(uint8 _index, address _user) external view returns(uint){
-        require(_index > 0 && _index <= _userStake[_user].stakedNum, "Index out of bounds");
+        require(_index < _userStake[_user].stakedNum, "Index out of bounds");
         return _userStake[_user].tokenIds[_index];
     }
 

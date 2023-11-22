@@ -4,8 +4,8 @@ pragma solidity 0.8.21;
 
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
-import "../src/NFT_Enumerable/NFTEnumerable.sol";
-import "../src/NFT_Enumerable/PrimeNumberFinder.sol";
+import "../src/CTF/NFT_Enumerable/NFTEnumerable.sol";
+import "../src/CTF/NFT_Enumerable/PrimeNumberFinder.sol";
 
 contract PrimeFinder is Test {
     

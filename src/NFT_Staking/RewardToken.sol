@@ -12,9 +12,8 @@ contract RewardToken is ERC20("RewardToken","rTKN") {
         stakingContract = msg.sender;
     }
 
-    function mint(address to, uint256 amount) external returns(bool success){
+    function mint(address to, uint256 amount) external {
         require(msg.sender == stakingContract, "only staking contract can mint");
         _mint(to, amount);
-        success = true;
     }
 }

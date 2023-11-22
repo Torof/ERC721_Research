@@ -55,7 +55,7 @@ contract StakingTest is Test {
         assertFalse(staking.supportsInterface(wrongByte4));
     }
 
-
+    //REVERT caller is not staking contract
     function testRevertMintERC20NotStakingContract() public {
         vm.expectRevert(abi.encodePacked("only staking contract can mint"));
         token.mint(wh_addr_1, 10 * 10 ** 18);
@@ -70,6 +70,23 @@ contract StakingTest is Test {
         assertEq(nft.totalSupply(), 1);
     }
 
+    //SUCCESS close presale
+    function testClosePresale() public {
+        assertTrue(nft.presale(), "sale is not in presale");
+        vm.prank(contractsOwner);
+        nft.closePresale();
+        assertFalse(nft.presale(), "sale is still in presale");
+    }
+
+    //REVERT presale already closed
+    function testRevertPresaleAlreadyClosed() public {
+        vm.startPrank(contractsOwner);
+        nft.closePresale();
+        vm.expectRevert(abi.encodePacked("presale already closed"));
+        nft.closePresale();
+    }
+
+
     //REVERT whitelistmint presale closed
     function testRevertWhitelistMintIfPresaleClosed() public {
         vm.prank(wh_addr_1);
@@ -79,6 +96,9 @@ contract StakingTest is Test {
         nft.closePresale();
 
         assertFalse(nft.presale(), "sale still in presale");
+        vm.prank(wh_addr_1);
+        vm.expectRevert(abi.encodePacked("presale is closed"));
+        nft.whitelistMint{value: 0.5 ether}();
     }
 
     //REVERT whitlist mint if price not right
@@ -103,6 +123,8 @@ contract StakingTest is Test {
         vm.expectRevert(abi.encodePacked("max cap reached"));
         nft.whitelistMint{value: 0.5 ether}();
     }
+
+    //SUCCESS close presale
 
     //SUCCESS mint NFT
     function testMint() public {
@@ -201,10 +223,12 @@ contract StakingTest is Test {
         vm.prank(n_wh_addr_1);
         nft.safeTransferFrom(n_wh_addr_1, address(staking), 2);
         assertEq(nft.totalSupply(), 2, "total supply should be 2");
+
         (uint8 stakedNum, uint64 lastClaim) = staking.userStake(n_wh_addr_1);
+
         assertEq(stakedNum, 1, "stakedNum should be 1");
         assertEq(lastClaim, uint64(block.timestamp), "lastClaim should be block.timestamp");
-        assertEq(staking.tokenIdByIndex(1, n_wh_addr_1), 2, "tokenId should be 1");
+        assertEq(staking.tokenIdByIndex(0, n_wh_addr_1), 2, "tokenId should be 1");
     }
 
     //REVERT onERC721Received if not from NFT contract
@@ -233,9 +257,6 @@ contract StakingTest is Test {
     function testRevertTokenIdByIndex() public {
         vm.prank(wh_addr_1);
         nft.whitelistMint{value: 0.5 ether}();
-
-        vm.expectRevert(abi.encodePacked("Index out of bounds"));
-        staking.tokenIdByIndex(0,wh_addr_1);
 
         vm.expectRevert(abi.encodePacked("Index out of bounds"));
         staking.tokenIdByIndex(2,wh_addr_1);
@@ -283,8 +304,7 @@ contract StakingTest is Test {
         staking.claim();
     }
 
-    //TODO make it work
-    //WARNING if token 0 is sent to staking contract, there might be confusion
+
     //SUCCESS unstake
     function testUnstake() public {
         //close presale
@@ -302,13 +322,66 @@ contract StakingTest is Test {
         (uint8 stakedNum, ) = staking.userStake(n_wh_addr_1);
         assertEq(stakedNum, 1, "stakedNum should be 1");
         assertEq(staking.ownerOf(1), n_wh_addr_1, "owner of 1 should be n_wh_addr_1");
-        
+        assertEq(nft.ownerOf(1), address(staking), "owner of 1 should be staking contract");
+
         //unstake
-        staking.unStake(1);
+        staking.unStake(0);
         (stakedNum, ) = staking.userStake(n_wh_addr_1);
         assertEq(stakedNum, 0, "stakedNum should be 0");
         vm.expectRevert(abi.encodePacked("Index out of bounds"));
         staking.tokenIdByIndex(1, n_wh_addr_1);
+
+        //verify that owner of 1 is n_wh_addr_1 and has custody again
+        address ownerOf = nft.ownerOf(1);
+        assertEq(ownerOf, n_wh_addr_1, "owner of 1 should be n_wh_addr_1");
+    }
+
+        //REVERT unstake if not index out of bounds
+        function testRevertUnstakeIfIndexOutOfBounds() public {
+            //close presale
+            vm.prank(contractsOwner);
+            nft.closePresale();
+    
+            //normal mint
+            vm.prank(n_wh_addr_1);
+            nft.mint{value: 1 ether}();
+    
+            //stake
+            vm.startPrank(n_wh_addr_1);
+            nft.safeTransferFrom(n_wh_addr_1, address(staking), 1);
+    
+            (uint8 stakedNum, ) = staking.userStake(n_wh_addr_1);
+            assertEq(stakedNum, 1, "stakedNum should be 1");
+            assertEq(staking.ownerOf(1), n_wh_addr_1, "owner of 1 should be n_wh_addr_1");
+            
+            //unstake
+            vm.startPrank(n_wh_addr_1);
+            vm.expectRevert(abi.encodePacked("Index out of bounds"));
+            staking.unStake(1);
+            vm.stopPrank();
+        }
+
+
+    function testClaimable() public {
+        //close presale
+        vm.prank(contractsOwner);
+        nft.closePresale();
+
+        //normal mint
+        vm.prank(n_wh_addr_1);
+        nft.mint{value: 1 ether}();
+
+        //stake
+        vm.startPrank(n_wh_addr_1);
+        nft.safeTransferFrom(n_wh_addr_1, address(staking), 1);
+
+        //wrap 1 day
+        skip(1 days + 1);
+
+        //claim
+        vm.prank(n_wh_addr_1);
+        uint claimable = staking.claimable();
+        assertGt(claimable, 10 * 10 ** 18, "balance should be more than 10 tokens");
     }
 
 }
